@@ -1,0 +1,197 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  template: openidconnect-quarkus-template
+metadata:
+  annotations:
+    description: Template to create a Token sidecar for application 
+    iconClass: icon-rh-integration
+    openshift.io/display-name: Red Hat Fuse 7.3 JWT
+    openshift.io/provider-display-name: Red Hat, Inc.
+    tags: quarkus,java,openidconnect,sidecar
+    version: "1.2"
+  name: openidconnect-quarkus-template
+  namespace: openshift
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: The openidconnect sidecar in Quarkus
+    labels:
+      app: ${APP_NAME}
+      group: com.redhat.appdev.auth
+      provider: quarkus
+      version: ${APP_VERSION}
+    name: ${APP_NAME}
+  spec:
+    ports:
+    - name: ${APP_NAME}
+      port: ${{SERVICE_PORT}}
+      targetPort: ${{WEB_PORT}}    
+    selector:
+      app: ${APP_NAME}
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: ${APP_NAME}
+      group: com.redhat.appdev.auth
+      provider: quarkus
+      version: ${APP_VERSION}
+    name: ${APP_NAME}
+  spec:
+    replicas: 1
+    selector:
+      app: ${APP_NAME}
+      group: com.redhat.appdev.auth
+      provider: quarkus
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 3600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          app: ${APP_NAME}
+          group: com.redhat.appdev.auth
+          provider: quarkus
+          version: ${APP_VERSION}
+        name: ${APP_NAME}
+      spec:
+        containers:
+        - env:
+          - name: KUBERNETES_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: TARGET_PORT
+            value: "${TARGET_PORT}"
+          - name: SSO_CLIENTID
+            value: "${SSO_CLIENTID}"
+          - name: SSO_AUTH_SERVER_URL
+            value: "${SSO_AUTH_SERVER_URL}"
+          - name: SSO_SERVER_RSA_PUBLIC_KEY
+            value: "${SSO_SERVER_RSA_PUBLIC_KEY}"
+          image: ${APP_NAME}:${IMAGE_VERSION}
+          imagePullPolicy: IfNotPresent
+          name: ${APP_NAME}
+          ports:
+          - containerPort: ${{WEB_PORT}}
+            name: proxy
+            protocol: TCP
+          resources:
+            limits:
+              cpu: ${{CPU_LIMIT}}
+              memory: ${MEMORY_LIMIT}              
+            requests:
+              cpu: ${CPU_REQUEST}
+              memory: ${MEMORY_REQUEST}              
+          securityContext:
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - name: truststore
+            mountPath: /mnt/truststore
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          privileged: false
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: truststore
+          secret: 
+            secretName: mutua-truststore
+            items:
+            - key: truststore-replace.jks
+              path: truststore-replace.jks
+    test: false
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${APP_NAME}
+        from:
+          kind: ImageStreamTag
+          name: ${APP_NAME}:latest
+      type: ImageChange
+    - type: ConfigChange
+parameters:
+- displayName: Application Name
+  name: APP_NAME
+  required: true
+- displayName: Application Maven Version
+  name: APP_VERSION
+  required: true
+  value: "latest"
+- displayName: Application Image Version
+  name: IMAGE_VERSION
+  required: true  
+  value: "latest"
+- displayName: The port to expose the service
+  name: SERVICE_PORT
+  required: true
+  value: "8080"
+- displayName: The path of the healthcheck for the application
+  name: HEALTHCHECK_PATH
+  required: true
+  value: /actuator/health
+- displayName: The port of the healthcheck for the application
+  name: HEALTHCHECK_PORT
+  required: true
+  value: "8180"
+- displayName: The web port of the application
+  name: WEB_PORT
+  required: true
+  value: "8080" 
+- displayName: The port of the target application to proxy
+  name: TARGET_PORT
+  required: false
+  value: "8082"  
+- displayName: The CPU Limit for the application
+  name: CPU_LIMIT
+  required: true
+  value: "0.5"
+- displayName: The Memory Limit for the application
+  name: MEMORY_LIMIT
+  required: true
+  value: "200M"
+- displayName: The CPU Request for the application
+  name: CPU_REQUEST
+  required: true
+  value: "0.2"
+- displayName: The Memory Request for the application
+  name: MEMORY_REQUEST
+  required: true
+  value: "50M" 
+- displayName: The base URL of the SSO server
+  name: SSO_AUTH_SERVER_URL
+  required: true
+  value: "https://<server>/auth/realms/<realm>"
+- displayName: The client ID for RH SSO
+  name: SSO_CLIENTID
+  required: false
+  value: "test"  
+- displayName: The client secret
+  name: SSO_SECRET
+  required: false
+  value: "test"  
+- displayName: The context path of the application
+  name: SSO_JWKS_URL
+  required: true
+  value: "http://<server>/auth/realms/<realm>/protocol/openid-connect/certs"  
+- displayName: The public key (RSA type) of the SSO server
+  name: SSO_SERVER_RSA_PUBLIC_KEY
+  required: true
+  value: "" 
+  

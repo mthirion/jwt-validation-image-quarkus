@@ -1,0 +1,50 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  template: openidconnect-quarkus-buildconfig-template
+metadata:
+  annotations:
+    description: Template to create application with Token sidecar in Quarkus
+    iconClass: icon-rh-integration
+    openshift.io/display-name: Red Hat Fuse 7.3 JWT 
+    openshift.io/provider-display-name: Red Hat, Inc.
+    tags: quarkus,java,jboss-fuse,fis, openidconnect, sidecar
+    version: "1.2"
+  name: openidconnect-quarkus-buildconfig-template
+objects:
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: openidconnect-gateway-quarkus
+      group: com.redhat.appdev.auth
+      provider: quarkus
+      version: 1.0.0
+    name: openidconnect-gateway-quarkus-s2i
+  spec:
+    failedBuildsHistoryLimit: 5
+    nodeSelector: {}
+    output:
+      to:
+        kind: ImageStreamTag
+        name: openidconnect-gateway-quarkus:${IMAGE_VERSION}
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      binary: {}
+      type: Binary
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: redhat-openjdk18-openshift:1.2
+          namespace: openshift
+      type: Source
+    successfulBuildsHistoryLimit: 5
+    triggers: []
+parameters:
+- displayName: The version of the image
+  name: IMAGE_VERSION
+  value: "latest"
+  required: true
